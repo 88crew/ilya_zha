@@ -120,7 +120,8 @@ main { padding: 4px 16px 16px; }
   background: var(--soft);
   color: var(--soft-text);
 }
-.empty p { color: var(--hint); margin-bottom: 20px; }
+.empty p { color: var(--hint); margin: 0; text-wrap: balance; }
+.empty > .btn { margin-top: 24px; }
 .empty-fill {
   /* по центру экрана между верхом и нижней панелью */
   display: flex;
@@ -237,7 +238,6 @@ main { padding: 4px 16px 16px; }
 
 .dsplit {
   display: flex;
-  flex-direction: column;
   width: 100%;
   margin-bottom: 16px;
   padding: 0;
@@ -249,12 +249,14 @@ main { padding: 4px 16px 16px; }
 }
 .dpart {
   position: relative;
+  overflow: hidden;
   display: flex;
-  align-items: baseline;
-  gap: 12px;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
   padding: 16px 18px;
 }
-.dpart + .dpart { border-top: 1px solid rgba(11, 46, 33, 0.18); }
 .dpart b {
   font-size: 34px;
   font-weight: 800;
@@ -306,10 +308,17 @@ main { padding: 4px 16px 16px; }
   grid-template-columns: 80px 1fr;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px 12px 10px;
+  width: 100%;
+  padding: 12px 18px 12px 10px;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
 }
-.dblock-cta .dblock-title { font-size: clamp(16px, 4.4vw, 18px); text-wrap: balance; }
-.dblock-cta .btn { margin-top: 10px; width: auto; display: inline-flex; }
+.dblock-cta:active { transform: scale(0.99); }
+.dblock-body { display: inline-flex; flex-direction: column; align-items: stretch; justify-self: start; }
+.dblock-cta .dblock-title { display: block; font-size: clamp(16px, 4.4vw, 18px); text-wrap: balance; }
+.long-arrow { display: flex; align-items: center; margin-top: 10px; color: var(--lime); }
+.long-arrow i { flex: 1; height: 2px; margin-right: -9px; border-radius: 1px; background: currentColor; }
 .dblock-art {
   width: 80px;
   height: 80px;
@@ -472,6 +481,7 @@ main { padding: 4px 16px 16px; }
 .field input:focus,
 .field textarea:focus { outline: 2px solid var(--forest-2); outline-offset: -1px; border-color: transparent; }
 .field .btn { margin-top: 8px; }
+.field-hint { display: block; margin: 6px 4px 0; font-size: 12px; color: var(--hint); }
 .error { color: var(--danger); font-size: 13px; margin: 6px 4px 0; }
 .ok { display: flex; gap: 6px; align-items: center; color: var(--save); font-size: 13px; font-weight: 500; margin: 6px 4px 0; }
 .switch-row {
@@ -534,6 +544,16 @@ a { color: var(--link); }
 .tile-icon.tone-forest { color: var(--lime); }
 .tile-icon.tone-forest::after { display: none; }
 .tile-pct { display: flex; flex-direction: column; }
+.tile-art {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 72px;
+  height: 72px;
+  -webkit-mask-image: radial-gradient(closest-side, #000 78%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 78%, transparent 100%);
+}
+.tile-pct .tile-label { padding-right: 64px; }
 .tile-value {
   margin-top: auto;
   font-size: 48px;
@@ -593,10 +613,10 @@ a { color: var(--link); }
 
 /* ── Заказ принят / заявка отправлена ── */
 .success { text-align: center; padding-top: 28px; }
-.success h2 { margin: 16px 0 6px; font-size: 26px; }
+.success h2 { margin: 0 0 6px; font-size: 26px; }
 .success > p { color: var(--hint); }
-.success .panel { text-align: left; margin: 20px 0 16px; }
-.success > .btn { margin-top: 20px; }
+.success .panel { text-align: left; margin-top: 24px; }
+.success > .btn { margin-top: 24px; }
 
 /* ── Нижняя панель: «жидкое стекло» в стиле iOS ── */
 .dock {

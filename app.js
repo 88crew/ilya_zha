@@ -26,7 +26,7 @@ const state = {
   comment: '',
   lastOrder: null,
   form: { name: '', phone: '', email: '', consent: true, contact: null, errors: {} },
-  restore: { comment: '', errors: {} },
+  restore: { contact: '', comment: '', errors: {} },
 };
 
 const $view = document.getElementById('view');
@@ -298,13 +298,13 @@ function setupLazyLoad() {
 /** Блок скидки над товарами: приглашение для новичка или приветствие для клиента. */
 function discountBlock() {
   if (!state.profile) {
-    return `<section class="dblock dblock-cta">
+    return `<button class="dblock dblock-cta" data-action="register">
       <img class="dblock-art" src="img/discount-coin.jpg" alt="" width="80" height="80">
-      <div class="dblock-body">
-        <p class="dblock-title">Зарегистрируйся и&nbsp;сразу получи скидку</p>
-        <button class="btn btn-primary btn-sm" data-action="register">Забрать скидку</button>
-      </div>
-    </section>`;
+      <span class="dblock-body">
+        <span class="dblock-title">Зарегистрируйся и&nbsp;сразу получи скидку</span>
+        <span class="long-arrow" aria-hidden="true"><i></i>${icon('chevron', 's', 18)}</span>
+      </span>
+    </button>`;
   }
 
   // Есть скидка: крупные проценты по программам, по тапу — вкладка «Мои скидки».
@@ -407,8 +407,11 @@ function lineHtml(l) {
 // ── Мои скидки: бенто из виджетов ──
 
 function viewDiscounts() {
-  // Пока скидки нет — только баннер с приглашением, без виджетов.
-  if (!state.profile) return discountBlock();
+  // Пока скидки нет — пустое состояние с приглашением, без виджетов.
+  if (!state.profile) {
+    return emptyState('discount-coin-light', 'Зарегистрируйся и сразу получи скидку',
+      '<button class="btn btn-primary" data-action="register">Зарегистрироваться</button>', true);
+  }
   const programs = state.discounts.filter(d => d.active || d.manual);
   if (!programs.length) return '<p class="hint">Уровни скидок скоро появятся.</p>';
   const odd = programs.length % 2 === 1;
@@ -441,7 +444,9 @@ function percentTile(d, i, wide) {
   } else {
     note = '';
   }
+  const art = programArt(d.name);
   return `<article class="tile tile-pct ${i % 2 ? 'tone-lime' : 'tone-forest'} ${wide ? 'tile-wide' : ''}">
+    ${art ? `<img class="tile-art" src="img/${art}.jpg" alt="" width="72" height="72">` : ''}
     <p class="tile-label">Скидка на ${esc(lower(d.name))}</p>
     <p class="tile-value">${value}<span>%</span></p>
     ${note ? `<p class="tile-note">${note}</p>` : ''}
@@ -530,13 +535,14 @@ function viewRestore() {
   return `<button class="backbtn" data-action="back">${icon('back', 'm', 20)}Назад</button>
   <section class="panel">
     <h2>Уже покупали у нас?</h2>
-    <p class="muted">Оставь телефон и напиши, что покупал. Мы найдём историю покупок, и скидка появится, когда ты снова откроешь магазин.</p>
 
-    ${phoneField()}
-    ${err('phone')}
+    <label class="field"><span>Телефон или ник в Telegram</span>
+      <input id="r-contact" autocomplete="tel" placeholder="+7 900 123-45-67 или @ник" value="${esc(r.contact)}"></label>
+    ${err('contact')}
 
-    <label class="field"><span>Комментарий</span>
-      <textarea id="r-comment" rows="3" maxlength="500" placeholder="Например: покупал iPhone 15 в марте, ещё чехол и стекло">${esc(r.comment)}</textarea></label>
+    <label class="field"><span>Предыдущие покупки</span>
+      <textarea id="r-comment" rows="4" maxlength="500" placeholder="Например: iPhone 15 в марте, ещё чехол и стекло">${esc(r.comment)}</textarea>
+      <small class="field-hint">Напиши, что и когда покупал. Мы найдём историю, и скидка появится, когда ты снова откроешь магазин.</small></label>
 
     <div class="form-actions">
       <button class="btn btn-primary" data-action="submit-restore" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Отправляем…' : 'Отправить'}</button>
@@ -652,7 +658,6 @@ function sharePhone() {
       state.form.phone = '+' + String(contact.phone_number).replace(/\D/g, '');
       state.form.contact = res.response;
       state.form.errors.phone = null;
-      state.restore.errors.phone = null;
       render();
     } else {
       toast('Номер отправлен боту. Введи его в поле вручную.');
@@ -704,15 +709,17 @@ async function submitRestore() {
   if (state.busy) return;
   const r = state.restore;
   r.errors = {};
-  const pe = phoneError(state.form.phone);
-  if (pe) r.errors.phone = pe;
-  if (r.errors.phone) return render();
+  const contact = r.contact.trim();
+  const isPhone = contact.replace(/\D/g, '').length >= 10;
+  const isNick = /^@?[A-Za-z][A-Za-z0-9_]{3,31}$/.test(contact);
+  if (!isPhone && !isNick) r.errors.contact = 'Укажи телефон (например, +7 900 123-45-67) или ник в Telegram';
+  if (r.errors.contact) return render();
 
   await requestWriteAccess();
 
   setBusy(true);
   try {
-    await api('restore', { phone: state.form.phone.trim(), name: state.form.name.trim(), comment: r.comment.trim() });
+    await api('restore', { contact, name: state.form.name.trim(), comment: r.comment.trim() });
     r.comment = '';
     state.screen = 'restore-sent';
     haptic('success');
@@ -775,6 +782,7 @@ $view.addEventListener('click', e => {
     openRegister();
   } else if (action === 'restore') {
     state.restore.errors = {};
+    if (!state.restore.contact) state.restore.contact = state.form.phone || (tgUser().username ? '@' + tgUser().username : '');
     openScreen('restore');
   } else if (action === 'submit-restore') {
     submitRestore();
@@ -800,6 +808,7 @@ $view.addEventListener('input', e => {
   else if (t.id === 'f-email') state.form.email = t.value;
   else if (t.id === 'f-consent') state.form.consent = t.checked;
   else if (t.id === 'r-comment') state.restore.comment = t.value;
+  else if (t.id === 'r-contact') state.restore.contact = t.value;
 });
 $view.addEventListener('change', e => {
   if (e.target.id === 'f-consent') state.form.consent = e.target.checked;
@@ -842,11 +851,16 @@ function productIcon(p) {
   return 'tag';
 }
 
-/** Иконка программы скидок для виджетов: аксессуары — наушники, устройства — телефон. */
+/** Иконка программы скидок для виджетов: аксессуары — наушники, девайсы — телефон. */
+/** Объёмная иконка программы для плиток «Моих скидок». */
+function programArt(name) {
+  return programIcon(name) === 'headphones' ? 'program-accessories' : programIcon(name) === 'mobile' ? 'program-devices' : '';
+}
+
 function programIcon(name) {
   const n = name.toLowerCase();
   if (/аксессуар/.test(n)) return 'headphones';
-  if (/устройств|телефон|смартфон|iphone|техник/.test(n)) return 'mobile';
+  if (/девайс|устройств|телефон|смартфон|iphone|техник/.test(n)) return 'mobile';
   return 'tag';
 }
 
@@ -937,17 +951,17 @@ const demo = {
   shop: { name: 'Айпарк', currency: '₽', policyUrl: '' },
   programs: [
     { name: 'Аксессуары', levels: [{ threshold: 0, discount: 5, title: '' }, { threshold: 1500, discount: 10, title: '' }, { threshold: 3000, discount: 20, title: '' }, { threshold: 5000, discount: 30, title: 'VIP card' }] },
-    { name: 'Устройства', levels: [{ threshold: 10000, discount: 1, title: '' }, { threshold: 50000, discount: 2, title: '' }, { threshold: 100000, discount: 3, title: '' }] },
+    { name: 'Девайсы', levels: [{ threshold: 10000, discount: 1, title: '' }, { threshold: 50000, discount: 2, title: '' }, { threshold: 100000, discount: 3, title: '' }] },
   ],
   // История «узнанного» клиента: как в примере из описания для заказчика.
-  spent: { 'Аксессуары': 1500, 'Устройства': 10000 },
+  spent: { 'Аксессуары': 1500, 'Девайсы': 10000 },
   categories: [
-    { name: 'iPhone', group: 'Устройства' },
-    { name: 'iPhone б/у', group: 'Устройства' },
-    { name: 'AirPods', group: 'Устройства' },
-    { name: 'Apple Watch', group: 'Устройства' },
-    { name: 'Samsung', group: 'Устройства' },
-    { name: 'Яндекс', group: 'Устройства' },
+    { name: 'iPhone', group: 'Девайсы' },
+    { name: 'iPhone б/у', group: 'Девайсы' },
+    { name: 'AirPods', group: 'Девайсы' },
+    { name: 'Apple Watch', group: 'Девайсы' },
+    { name: 'Samsung', group: 'Девайсы' },
+    { name: 'Яндекс', group: 'Девайсы' },
     { name: 'Аксессуары', group: 'Аксессуары' },
   ],
   products: [
