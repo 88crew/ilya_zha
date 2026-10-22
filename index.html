@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Айпарк</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@100..900&family=Playfair+Display:wght@400..900&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1 id="shop-title">Добро пожаловать</h1>
+  </header>
+
+  <div id="demo-banner" class="demo-banner" hidden>Демо-режим: данные ненастоящие. Открой мини-приложение в Telegram, чтобы увидеть магазин.</div>
+
+  <main id="view" aria-live="polite"></main>
+
+  <!-- Нижняя панель в стиле iOS: вкладки слева, корзина справа -->
+  <nav class="dock" aria-label="Разделы">
+    <div class="dock-tabs glass">
+      <button type="button" class="dock-tab" data-tab="catalog" aria-label="Каталог"></button>
+      <button type="button" class="dock-tab" data-tab="discounts" aria-label="Мои скидки"></button>
+    </div>
+    <button type="button" id="dock-cart" class="dock-cart glass" aria-label="Корзина">
+      <span id="dock-cart-icon"></span>
+      <span id="dock-cart-label" class="dock-cart-label"></span>
+      <span id="cart-count" class="dock-badge" hidden></span>
+    </button>
+  </nav>
+  <div id="toast" class="toast" role="status" hidden></div>
+
+  <script src="icons.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
