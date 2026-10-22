@@ -309,20 +309,18 @@ function discountBlock() {
 
   // Есть скидка: крупные проценты по программам, по тапу — вкладка «Мои скидки».
   const active = state.discounts.filter(d => (d.active || d.manual) && d.discount > 0);
-  return `<button class="dblock dblock-mini" data-action="tab" data-value="discounts" aria-label="Мои скидки">
+  // Цвета частей — как у плиток в «Моих скидках»: первая программа тёмная, вторая лаймовая.
+  const tone = d => (state.discounts.filter(x => x.active || x.manual).indexOf(d) % 2 ? 'tone-lime' : 'tone-forest');
+  return `<button class="dsplit" data-action="tab" data-value="discounts" aria-label="Мои скидки">
     ${active.length
-      ? active.map(d => `<span class="dmini"><b>−${d.discount}%</b><span>на все ${esc(lower(d.name))}</span></span>`).join('')
-      : '<span class="dmini-empty">Скидка появится после первой покупки</span>'}
-    ${icon('chevron', 's', 22)}
+      ? active.map(d => `<span class="dpart ${tone(d)}"><b>−${d.discount}%</b><span>на все ${esc(lower(d.name))}</span></span>`).join('')
+      : '<span class="dpart tone-forest"><span>Скидка появится после первой покупки</span></span>'}
   </button>`;
 }
 
 function chip(value, label) {
-  const d = value ? categoryDiscount(value) : 0;
   const pressed = state.activeCategory === value;
-  return `<button class="chip" data-action="category" data-value="${esc(value || '')}" aria-pressed="${pressed}">
-    ${esc(label)}${d ? `<span class="chip-badge">−${d}%</span>` : ''}
-  </button>`;
+  return `<button class="chip" data-action="category" data-value="${esc(value || '')}" aria-pressed="${pressed}">${esc(label)}</button>`;
 }
 
 function productCard(p, eager) {
@@ -332,23 +330,21 @@ function productCard(p, eager) {
       ${icon(productIcon(p), 'r', 44)}
       ${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="${eager ? 'eager' : 'lazy'}" decoding="async">` : ''}
       ${p.label ? `<span class="label ${p.label === 'NEW' ? 'label-new' : 'label-used'}">${esc(p.label)}</span>` : ''}
-      ${d ? `<span class="tag">−${d}%</span>` : ''}
     </div>
     <div class="card-body">
       <h3>${esc(p.name)}</h3>
       <div class="price">${priceHtml(p.price, d)}</div>
-      ${p.stock !== null && p.stock !== undefined && p.stock <= 5 ? `<p class="stock-left">Осталось ${p.stock} шт.</p>` : ''}
       <div class="ctrl">${qtyControl(p.id)}</div>
     </div>
   </article>`;
 }
 
+/** Кнопка на карточке: положить в корзину, а если товар уже там — перейти к заказу. Количество меняется в корзине. */
 function qtyControl(id) {
-  const qty = state.cart[id] || 0;
-  if (!qty) {
+  if (!state.cart[id]) {
     return `<button class="btn btn-icon" data-action="inc" data-id="${esc(id)}" aria-label="В корзину">${icon('cart', 's', 20)}</button>`;
   }
-  return stepper(id, qty);
+  return `<button class="btn btn-primary" data-action="tab" data-value="cart">К заказу ${icon('arrow', 's', 18)}</button>`;
 }
 
 function stepper(id, qty) {
