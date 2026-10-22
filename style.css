@@ -139,8 +139,8 @@ main { padding: 4px 16px 16px; }
   height: 132px;
   margin: 0 auto 12px;
   /* фон картинки растворяется в фоне страницы */
-  -webkit-mask-image: radial-gradient(circle, #000 60%, transparent 71%);
-  mask-image: radial-gradient(circle, #000 60%, transparent 71%);
+  -webkit-mask-image: radial-gradient(closest-side, #000 82%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 82%, transparent 100%);
 }
 .empty .state-art + p { font-size: 17px; font-weight: 600; color: var(--text); }
 
@@ -232,6 +232,29 @@ main { padding: 4px 16px 16px; }
 .dblock-list li .icon { color: var(--lime); margin-top: 1px; }
 .dblock-list b { color: var(--lime); font-weight: 650; }
 .dblock-list strong { color: var(--on-forest); font-weight: 600; }
+
+.dblock-mini {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  width: 100%;
+  padding: 16px 16px 16px 18px;
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.dblock-mini > .icon { margin-left: auto; color: var(--lime); }
+.dmini { display: flex; flex-direction: column; }
+.dmini b {
+  font-size: 34px;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--lime);
+  font-variant-numeric: tabular-nums;
+}
+.dmini span { margin-top: 4px; font-size: 13px; color: var(--on-forest-muted); }
+.dmini-empty { font-size: 15px; font-weight: 600; }
 
 .linkbtn {
   display: inline-flex;
@@ -382,6 +405,7 @@ main { padding: 4px 16px 16px; }
 .price { margin-top: auto; padding-top: 4px; font-variant-numeric: tabular-nums; }
 .price b { font-size: 16px; font-weight: 700; }
 .price s { display: block; color: var(--hint); font-size: 12px; }
+.stock-left { font-size: 12px; color: var(--hint); }
 .ctrl { margin-top: 8px; }
 .ctrl .btn { min-height: 40px; font-size: 14px; }
 
@@ -404,6 +428,7 @@ main { padding: 4px 16px 16px; }
   color: inherit;
   cursor: pointer;
 }
+.stepper button:disabled { opacity: 0.35; cursor: default; }
 .stepper span { font-weight: 650; font-variant-numeric: tabular-nums; }
 
 /* ── Корзина ── */
@@ -571,6 +596,9 @@ a { color: var(--link); }
 .tile-footer { margin-top: 10px; font-size: 14px; color: var(--hint); }
 .tile-footer b { color: var(--text); font-weight: 650; }
 .hint { font-size: 13px; color: var(--hint); margin: 14px 4px 0; }
+.rules { margin: 16px 4px 0; padding-left: 18px; font-size: 13px; color: var(--hint); }
+.rules li + li { margin-top: 6px; }
+.rules li::marker { color: var(--forest-2); }
 
 /* ── Заказ принят / заявка отправлена ── */
 .success { text-align: center; padding-top: 28px; }

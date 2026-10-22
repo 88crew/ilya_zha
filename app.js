@@ -53,21 +53,56 @@ async function api(action, payload) {
   return data;
 }
 
+/**
+ * Сначала показываем сохранённую с прошлого раза копию магазина — мгновенно,
+ * а свежие данные с сервера подменяют её, как только придут.
+ */
 async function load() {
-  state.loading = true;
+  const cached = readInitCache();
+  if (cached) {
+    applyInit(cached);
+    state.loading = false;
+  } else {
+    state.loading = true;
+  }
   state.loadError = null;
   render();
   try {
-    applyInit(await api('init'));
+    const data = await api('init');
+    applyInit(data);
+    writeInitCache(data);
   } catch (err) {
-    state.loadError = err.message;
+    if (!cached) state.loadError = err.message;
   }
   state.loading = false;
-  render();
+  // Не перерисовываем открытую форму, чтобы не сбить ввод.
+  if (state.screen !== 'register' && state.screen !== 'restore') render();
+  else updateDock();
+}
+
+function initCacheKey() {
+  return `init_v1_${tgUser().id}`;
+}
+
+function readInitCache() {
+  if (DEMO) return null;
+  try {
+    return JSON.parse(localStorage.getItem(initCacheKey()));
+  } catch (err) {
+    return null;
+  }
+}
+
+function writeInitCache(data) {
+  if (DEMO) return;
+  try {
+    localStorage.setItem(initCacheKey(), JSON.stringify(data));
+  } catch (err) {
+    // Хранилище недоступно — в следующий раз просто подождём сервер.
+  }
 }
 
 function applyInit(data) {
-  cardCache.clear();
   state.shop = data.shop;
   state.categories = data.categories;
   state.products = data.products;
@@ -75,8 +110,12 @@ function applyInit(data) {
   state.profile = data.profile;
   if (state.activeCategory && !state.categories.some(c => c.name === state.activeCategory)) state.activeCategory = null;
 
-  // Товары, которых больше нет в каталоге, убираем из корзины.
-  Object.keys(state.cart).forEach(id => { if (!productById(id)) delete state.cart[id]; });
+  // Товары, которых больше нет, убираем из корзины, количество — не больше остатка.
+  Object.keys(state.cart).forEach(id => {
+    const p = productById(id);
+    if (!p) delete state.cart[id];
+    else if (p.stock !== null && p.stock !== undefined && state.cart[id] > p.stock) state.cart[id] = p.stock;
+  });
   saveCart();
 }
 
@@ -114,7 +153,16 @@ function categoryDiscount(category) {
   return c ? groupDiscount(c.group) : 0;
 }
 
+function stockOf(id) {
+  const p = productById(id);
+  return p && p.stock !== null && p.stock !== undefined ? p.stock : 999;
+}
+
 function setQty(id, qty) {
+  if (qty > stockOf(id)) {
+    toast(`Больше нет — в наличии ${stockOf(id)} шт.`);
+    qty = stockOf(id);
+  }
   if (qty > 0) state.cart[id] = Math.min(qty, 999);
   else delete state.cart[id];
   saveCart();
@@ -142,7 +190,9 @@ function cartTotals(lines) {
 
 function render() {
   const home = state.tab === 'catalog' && !state.screen;
-  document.getElementById('shop-title').textContent = `Добро пожаловать в ${state.shop.name}`;
+  document.getElementById('shop-title').textContent = state.profile
+    ? `Привет, ${state.profile.nick || state.profile.name}!`
+    : `Добро пожаловать в ${state.shop.name}`;
   document.querySelector('.top').hidden = !home; // приветствие — только на главной
   document.getElementById('demo-banner').hidden = !DEMO || !home;
 
@@ -205,7 +255,7 @@ function appendCards(products) {
   const frag = document.createDocumentFragment();
   products.forEach((p, i) => {
     const d = groupDiscount(p.group);
-    const key = `${p.id}|${d}`;
+    const key = [p.id, d, p.name, p.price, p.photo, p.label, p.stock].join('|');
     let node = cardCache.get(key);
     if (!node) {
       const tmp = document.createElement('div');
@@ -257,27 +307,14 @@ function discountBlock() {
     </section>`;
   }
 
-  const programs = state.discounts.filter(d => d.active || d.manual);
-  const p = state.profile;
-  const hello = p.nick || p.name;
-  const active = programs.filter(d => d.discount > 0);
-  const titles = programs.filter(d => d.title).map(d => d.title);
-  const next = programs.filter(d => d.next).sort((a, b) => a.next.left - b.next.left)[0];
-
-  const items = [
-    active.length
-      ? `${icon('percent', 'r', 18)}<span>Твоя скидка: ${active.map(d => `<b>−${d.discount}% на ${esc(lower(d.name))}</b>`).join(active.length > 2 ? ', ' : ' и ')}</span>`
-      : `${icon('percent', 'r', 18)}<span>Скидка появится после первой покупки</span>`,
-    titles.length ? `${icon('crown', 'r', 18)}<span>Статус: <b>${esc(titles.join(', '))}</b></span>` : '',
-    p.totalSpent > 0 ? `${icon('bag', 'r', 18)}<span>Сумма предыдущих заказов: <strong>${money(p.totalSpent)}</strong></span>` : '',
-    next ? `${icon('arrow', 'r', 18)}<span>До −${next.next.discount}% на ${esc(lower(next.name))}${next.next.title ? ` (${esc(next.next.title)})` : ''} осталось <strong>${money(next.next.left)}</strong></span>` : '',
-  ].filter(Boolean);
-
-  return `<section class="dblock">
-    <p class="dblock-title">Привет, ${esc(hello)}!</p>
-    <ul class="dblock-list">${items.map(i => `<li>${i}</li>`).join('')}</ul>
-    <button class="linkbtn" data-action="tab" data-value="discounts">Все уровни скидок ${icon('chevron', 's', 16)}</button>
-  </section>`;
+  // Есть скидка: крупные проценты по программам, по тапу — вкладка «Мои скидки».
+  const active = state.discounts.filter(d => (d.active || d.manual) && d.discount > 0);
+  return `<button class="dblock dblock-mini" data-action="tab" data-value="discounts" aria-label="Мои скидки">
+    ${active.length
+      ? active.map(d => `<span class="dmini"><b>−${d.discount}%</b><span>на все ${esc(lower(d.name))}</span></span>`).join('')
+      : '<span class="dmini-empty">Скидка появится после первой покупки</span>'}
+    ${icon('chevron', 's', 22)}
+  </button>`;
 }
 
 function chip(value, label) {
@@ -300,6 +337,7 @@ function productCard(p, eager) {
     <div class="card-body">
       <h3>${esc(p.name)}</h3>
       <div class="price">${priceHtml(p.price, d)}</div>
+      ${p.stock !== null && p.stock !== undefined && p.stock <= 5 ? `<p class="stock-left">Осталось ${p.stock} шт.</p>` : ''}
       <div class="ctrl">${qtyControl(p.id)}</div>
     </div>
   </article>`;
@@ -317,7 +355,7 @@ function stepper(id, qty) {
   return `<div class="stepper">
     <button data-action="dec" data-id="${esc(id)}" aria-label="Убрать одну штуку">${icon('minus', 's', 18)}</button>
     <span>${qty}</span>
-    <button data-action="inc" data-id="${esc(id)}" aria-label="Добавить ещё одну">${icon('plus', 's', 18)}</button>
+    <button data-action="inc" data-id="${esc(id)}" aria-label="Добавить ещё одну" ${qty >= stockOf(id) ? 'disabled' : ''}>${icon('plus', 's', 18)}</button>
   </div>`;
 }
 
@@ -361,7 +399,7 @@ function lineHtml(l) {
     </div>
     <div class="line-info">
       <div class="line-name">${esc(l.p.name)}</div>
-      <div class="line-meta">${esc(l.p.category)}${l.discount ? ` · <span class="save">−${l.discount}%</span>` : ''}</div>
+      <div class="line-meta">${l.discount ? `<span class="save">−${l.discount}%</span>` : esc(l.p.category)}</div>
       <div class="line-bottom">
         ${stepper(l.p.id, l.qty)}
         <div class="line-price">${l.discount ? `<s>${money(l.sum)}</s>` : ''}<b>${money(l.total)}</b></div>
@@ -384,7 +422,12 @@ function viewDiscounts() {
       ${programs.map((d, i) => percentTile(d, i, odd && i === programs.length - 1)).join('')}
       ${programs.map((d, i) => scaleTile(d, i)).join('')}
     </div>
-    <p class="hint">Скидки считаются отдельно: каждая покупка идёт в свою шкалу. Сумма засчитывается, когда заказ подтверждён, и скидка растёт сама.</p>`;
+    <ul class="rules">
+      <li>Скидки на ${esc(joinAnd(programs.map(d => lower(d.name))))} считаются отдельно: каждая покупка идёт в свою шкалу.</li>
+      <li>Сумма засчитывается, когда заказ подтверждён.</li>
+      <li>Скидка растёт сама, как только наберёшь сумму следующего уровня.</li>
+      <li>Скидки применяются, когда товар добавлен в корзину.</li>
+    </ul>`;
 }
 
 /** Виджет «Скидка на …»: крупный процент. */
@@ -399,15 +442,13 @@ function percentTile(d, i, wide) {
     note = 'персональная';
   } else if (d.title) {
     note = `${icon('crown', 'm', 14)}${esc(d.title)}`;
-  } else if (d.next) {
-    note = `следующая — ${d.next.discount}%`;
   } else {
-    note = 'максимальная';
+    note = '';
   }
   return `<article class="tile tile-pct ${i % 2 ? 'tone-lime' : 'tone-forest'} ${wide ? 'tile-wide' : ''}">
     <p class="tile-label">Скидка на ${esc(lower(d.name))}</p>
     <p class="tile-value">${value}<span>%</span></p>
-    <p class="tile-note">${note}</p>
+    ${note ? `<p class="tile-note">${note}</p>` : ''}
   </article>`;
 }
 
@@ -822,6 +863,10 @@ function applyTelegramTheme() {
   }
 }
 
+function joinAnd(list) {
+  return list.length > 1 ? `${list.slice(0, -1).join(', ')} и ${list[list.length - 1]}` : list.join('');
+}
+
 function maxDiscount(d) {
   return d.levels.reduce((m, l) => Math.max(m, l.discount), d.discount);
 }
@@ -910,8 +955,8 @@ const demo = {
     { name: 'Аксессуары', group: 'Аксессуары' },
   ],
   products: [
-    { id: 'IP16-128', name: 'iPhone 16 128 ГБ', category: 'iPhone', price: 79990, label: 'NEW' },
-    { id: 'IP13-128U', name: 'iPhone 13 128 ГБ, АКБ 89%', category: 'iPhone б/у', price: 34990, label: 'Б/У' },
+    { id: 'IP16-128', name: 'iPhone 16 128 ГБ', category: 'iPhone', price: 79990, label: 'NEW', stock: 3 },
+    { id: 'IP13-128U', name: 'iPhone 13 128 ГБ, АКБ 89%', category: 'iPhone б/у', price: 34990, label: 'Б/У', stock: 1 },
     { id: 'APP2', name: 'AirPods Pro 2 USB-C', category: 'AirPods', price: 19990, label: 'NEW' },
     { id: 'AWSE2', name: 'Apple Watch SE 2 40 мм', category: 'Apple Watch', price: 24990, label: '' },
     { id: 'SGS24', name: 'Samsung Galaxy S24 256 ГБ', category: 'Samsung', price: 64990, label: '' },
@@ -953,7 +998,7 @@ async function demoApi(action) {
     return {
       shop: demo.shop,
       categories: demo.categories,
-      products: demo.products.map(p => Object.assign({ group: groupOf(p.category), photo: '' }, p)),
+      products: demo.products.map(p => Object.assign({ group: groupOf(p.category), photo: '', stock: null }, p)),
       profile: profile(),
       discounts: demoDiscounts(),
     };
