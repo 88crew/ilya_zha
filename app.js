@@ -370,6 +370,10 @@ function viewCart() {
   }
   const t = cartTotals(lines);
   return `
+    ${state.profile ? '' : `<button class="tip" data-action="register">
+      <img src="img/tip-bulb.jpg" alt="" width="48" height="48">
+      <span>Чтобы оформить заказ со скидкой, зарегистрируйся.</span>${icon('chevron', 's', 18)}
+    </button>`}
     <h2 class="page-title">Корзина</h2>
     <ul class="lines">${lines.map(lineHtml).join('')}</ul>
     <section class="panel summary">
@@ -377,10 +381,6 @@ function viewCart() {
       ${t.discount > 0 ? `<div class="row save"><span>Твоя скидка</span><span>−${money(t.discount)}</span></div>` : ''}
       <div class="row total"><span>Итого</span><span>${money(t.total)}</span></div>
     </section>
-    ${state.profile ? '' : `<button class="tip" data-action="register">
-      <img src="img/tip-bulb.jpg" alt="" width="48" height="48">
-      <span>Чтобы оформить заказ со скидкой, зарегистрируйся.</span>${icon('chevron', 's', 18)}
-    </button>`}
     <label class="field">
       <span>Комментарий к заказу</span>
       <textarea id="comment" rows="3" maxlength="500" placeholder="Цвет, объём памяти, удобное время для связи">${esc(state.comment)}</textarea>
