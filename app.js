@@ -31,6 +31,9 @@ const state = {
 
 const $view = document.getElementById('view');
 let lazyObserver = null;
+// Готовые карточки товаров: при смене категории переставляем их, а не создаём заново —
+// так фото не перезагружаются.
+const cardCache = new Map();
 
 // ───────────── API ─────────────
 
@@ -64,6 +67,7 @@ async function load() {
 }
 
 function applyInit(data) {
+  cardCache.clear();
   state.shop = data.shop;
   state.categories = data.categories;
   state.products = data.products;
@@ -157,6 +161,15 @@ function render() {
   updateBackButton();
 }
 
+/** Пустое состояние: объёмная иконка, текст и (необязательно) кнопка; fill — по центру экрана. */
+function emptyState(art, text, action, fill) {
+  return `<div class="empty ${fill ? 'empty-fill' : ''}">
+    <img class="state-art" src="img/${art}.jpg" alt="" width="132" height="132">
+    <p>${esc(text)}</p>
+    ${action || ''}
+  </div>`;
+}
+
 function viewError() {
   return `<div class="empty">
     <div class="empty-icon">${icon('alert', 'r', 32)}</div>
@@ -180,14 +193,42 @@ function viewCatalog() {
         ${chip(null, 'Все')}
         ${state.categories.map(c => chip(c.name, c.name)).join('')}
       </div>
-      <div class="grid" id="grid">${list.slice(0, state.visible).map(productCard).join('')}</div>
+      <div class="grid" id="grid"></div>
       ${list.length > state.visible ? '<div id="more" class="more" aria-hidden="true"><div class="spinner spinner-sm"></div></div>' : ''}`
-    : `<div class="empty"><div class="empty-icon">${icon('mobile', 'r', 32)}</div><p>Товары скоро появятся</p></div>`}`;
+    : emptyState('empty-box', 'Товары скоро появятся')}`;
+}
+
+/** Кладёт в сетку карточки товаров, переиспользуя уже созданные. */
+function appendCards(products) {
+  const grid = document.getElementById('grid');
+  if (!grid) return;
+  const frag = document.createDocumentFragment();
+  products.forEach((p, i) => {
+    const d = groupDiscount(p.group);
+    const key = `${p.id}|${d}`;
+    let node = cardCache.get(key);
+    if (!node) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = productCard(p, grid.children.length + i < 6);
+      node = tmp.firstElementChild;
+      cardCache.set(key, node);
+    } else {
+      node.querySelector('.ctrl').innerHTML = qtyControl(p.id);
+    }
+    frag.appendChild(node);
+  });
+  grid.appendChild(frag);
+  // Картинка могла загрузиться, пока карточка была вне страницы, — тогда событие load уже прошло.
+  grid.querySelectorAll('.card-img img:not(.loaded)').forEach(img => {
+    if (img.complete && img.naturalWidth) img.classList.add('loaded');
+    else if (img.complete) img.remove();
+  });
 }
 
 /** Подгружает следующие товары, когда пользователь докрутил до конца списка. */
 function setupLazyLoad() {
   if (lazyObserver) lazyObserver.disconnect();
+  if (document.getElementById('grid')) appendCards(filteredProducts().slice(0, state.visible));
   const more = document.getElementById('more');
   if (!more || !('IntersectionObserver' in window)) return;
   lazyObserver = new IntersectionObserver(entries => {
@@ -195,7 +236,7 @@ function setupLazyLoad() {
     const list = filteredProducts();
     const next = list.slice(state.visible, state.visible + PAGE_SIZE);
     state.visible += next.length;
-    document.getElementById('grid').insertAdjacentHTML('beforeend', next.map(productCard).join(''));
+    appendCards(next);
     if (state.visible >= list.length) {
       lazyObserver.disconnect();
       more.remove();
@@ -208,7 +249,7 @@ function setupLazyLoad() {
 function discountBlock() {
   if (!state.profile) {
     return `<section class="dblock dblock-cta">
-      <img class="dblock-art" src="img/discount-coin.png" alt="" width="80" height="80">
+      <img class="dblock-art" src="img/discount-coin.jpg" alt="" width="80" height="80">
       <div class="dblock-body">
         <p class="dblock-title">Зарегистрируйся и&nbsp;сразу получи скидку</p>
         <button class="btn btn-primary btn-sm" data-action="register">Забрать скидку</button>
@@ -247,12 +288,12 @@ function chip(value, label) {
   </button>`;
 }
 
-function productCard(p) {
+function productCard(p, eager) {
   const d = groupDiscount(p.group);
   return `<article class="card" data-card="${esc(p.id)}">
     <div class="card-img">
       ${icon(productIcon(p), 'r', 44)}
-      ${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="lazy">` : ''}
+      ${p.photo ? `<img src="${esc(p.photo)}" alt="" loading="${eager ? 'eager' : 'lazy'}" decoding="async">` : ''}
       ${p.label ? `<span class="label ${p.label === 'NEW' ? 'label-new' : 'label-used'}">${esc(p.label)}</span>` : ''}
       ${d ? `<span class="tag">−${d}%</span>` : ''}
     </div>
@@ -290,11 +331,8 @@ function priceHtml(price, discount) {
 function viewCart() {
   const lines = cartLines();
   if (!lines.length) {
-    return `<div class="empty">
-      <div class="empty-icon">${icon('cart', 'r', 32)}</div>
-      <p>В корзине пока пусто</p>
-      <button class="btn btn-primary" data-action="tab" data-value="catalog">Перейти в каталог</button>
-    </div>`;
+    return emptyState('empty-box', 'В корзине пока пусто',
+      '<button class="btn btn-primary" data-action="tab" data-value="catalog">Перейти в каталог</button>', true);
   }
   const t = cartTotals(lines);
   return `
@@ -305,7 +343,10 @@ function viewCart() {
       ${t.discount > 0 ? `<div class="row save"><span>Твоя скидка</span><span>−${money(t.discount)}</span></div>` : ''}
       <div class="row total"><span>Итого</span><span>${money(t.total)}</span></div>
     </section>
-    ${state.profile ? '' : '<p class="note">Чтобы оформить заказ, зарегистрируйся — это займёт полминуты, и скидка сразу применится к корзине.</p>'}
+    ${state.profile ? '' : `<button class="tip" data-action="register">
+      <img src="img/tip-bulb.jpg" alt="" width="48" height="48">
+      <span>Чтобы оформить заказ со скидкой, зарегистрируйся.</span>${icon('chevron', 's', 18)}
+    </button>`}
     <label class="field">
       <span>Комментарий к заказу</span>
       <textarea id="comment" rows="3" maxlength="500" placeholder="Цвет, объём памяти, удобное время для связи">${esc(state.comment)}</textarea>
@@ -332,13 +373,12 @@ function lineHtml(l) {
 // ── Мои скидки: бенто из виджетов ──
 
 function viewDiscounts() {
+  // Пока скидки нет — только баннер с приглашением, без виджетов.
+  if (!state.profile) return discountBlock();
   const programs = state.discounts.filter(d => d.active || d.manual);
-  if (!programs.length) {
-    return `${state.profile ? '' : discountBlock()}<p class="hint">Уровни скидок скоро появятся.</p>`;
-  }
+  if (!programs.length) return '<p class="hint">Уровни скидок скоро появятся.</p>';
   const odd = programs.length % 2 === 1;
   return `
-    ${state.profile ? '' : discountBlock()}
     <h2 class="page-title">Мои скидки</h2>
     <div class="bento">
       ${programs.map((d, i) => percentTile(d, i, odd && i === programs.length - 1)).join('')}
@@ -469,7 +509,7 @@ function viewRestore() {
 
 function viewRestoreSent() {
   return `<section class="success">
-    <div class="success-icon">${icon('send', 'm', 34)}</div>
+    <img class="state-art" src="img/sent-plane.jpg" alt="" width="132" height="132">
     <h2>Заявка отправлена</h2>
     <p>Мы проверим историю покупок и вернём скидку. Она появится, когда ты снова откроешь магазин.</p>
     <button class="btn btn-primary" data-action="tab" data-value="catalog">Вернуться в каталог</button>
@@ -488,7 +528,7 @@ function phoneField() {
 function viewSuccess() {
   const o = state.lastOrder;
   return `<section class="success">
-    <div class="success-icon">${icon('check', 's', 36)}</div>
+    <img class="state-art" src="img/done-check.jpg" alt="" width="132" height="132">
     <h2>Заказ №${o.no} принят</h2>
     <p>Мы свяжемся с тобой в Telegram, чтобы подтвердить заказ.</p>
     <div class="panel">
@@ -648,10 +688,8 @@ async function submitRestore() {
 
 async function submitOrder() {
   if (state.busy) return;
-  if (!state.profile) {
-    state.tab = 'cart';
-    return openRegister();
-  }
+  // Заказать можно и без регистрации — просто без скидки.
+  if (!state.profile) await requestWriteAccess();
   const items = Object.keys(state.cart).map(id => ({ id, qty: state.cart[id] }));
   setBusy(true);
   try {
@@ -664,7 +702,7 @@ async function submitOrder() {
     haptic('success');
   } catch (err) {
     alertMessage(err.message);
-    if (err.code === 'unavailable' || err.code === 'not_registered') await load();
+    if (err.code === 'unavailable') await load();
   }
   setBusy(false);
   window.scrollTo(0, 0);
@@ -732,7 +770,11 @@ $view.addEventListener('change', e => {
 
 // Сломанная картинка товара → остаётся иконка-заглушка под ней.
 $view.addEventListener('error', e => {
-  if (e.target.tagName === 'IMG') e.target.remove();
+  if (e.target.tagName === 'IMG' && e.target.closest('.card-img, .line-thumb')) e.target.remove();
+}, true);
+// Загрузившееся фото плавно проявляется поверх заглушки.
+$view.addEventListener('load', e => {
+  if (e.target.tagName === 'IMG') e.target.classList.add('loaded');
 }, true);
 
 document.querySelectorAll('.dock-tab').forEach(t => t.addEventListener('click', () => openTab(t.dataset.tab)));

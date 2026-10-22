@@ -121,6 +121,53 @@ main { padding: 4px 16px 16px; }
   color: var(--soft-text);
 }
 .empty p { color: var(--hint); margin-bottom: 20px; }
+.empty-fill {
+  /* по центру экрана между верхом и нижней панелью */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 150px);
+  min-height: calc(100dvh - 150px);
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.empty-fill .btn { width: auto; }
+.state-art {
+  display: block;
+  width: 132px;
+  height: 132px;
+  margin: 0 auto 12px;
+  /* фон картинки растворяется в фоне страницы */
+  -webkit-mask-image: radial-gradient(circle, #000 60%, transparent 71%);
+  mask-image: radial-gradient(circle, #000 60%, transparent 71%);
+}
+.empty .state-art + p { font-size: 17px; font-weight: 600; color: var(--text); }
+
+.tip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 14px 8px 8px;
+  border: 0;
+  border-radius: var(--radius);
+  background: var(--soft);
+  color: var(--soft-text);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.tip img {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  -webkit-mask-image: radial-gradient(circle, #000 60%, transparent 71%);
+  mask-image: radial-gradient(circle, #000 60%, transparent 71%);
+}
+.tip span { flex: 1; }
 
 .spinner-sm { width: 22px; height: 22px; margin: 0 auto; border-width: 2.5px; }
 .more { padding: 20px 0 8px; }
@@ -162,10 +209,11 @@ main { padding: 4px 16px 16px; }
   display: flex;
   align-items: center;
   gap: 10px;
-  font-family: var(--font-display);
-  font-size: 22px;
+  font-family: var(--font-text);
+  font-size: 20px;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
 }
 .dblock-title .icon { color: var(--lime); }
 .dblock-sub { margin-top: 6px; font-size: 14px; color: var(--on-forest-muted); }
@@ -226,7 +274,7 @@ main { padding: 4px 16px 16px; }
   gap: 12px;
   padding: 12px 16px 12px 10px;
 }
-.dblock-cta .dblock-title { font-size: clamp(16px, 4.6vw, 19px); text-wrap: balance; }
+.dblock-cta .dblock-title { font-size: clamp(16px, 4.4vw, 18px); text-wrap: balance; }
 .dblock-cta .btn { margin-top: 10px; width: auto; display: inline-flex; }
 .dblock-art {
   width: 80px;
@@ -294,7 +342,18 @@ main { padding: 4px 16px 16px; }
   color: var(--soft-text);
   overflow: hidden;
 }
-.card-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.card-img img,
+.line-thumb img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+.card-img img.loaded,
+.line-thumb img.loaded { opacity: 1; }
 .tag {
   position: absolute;
   top: 8px;
@@ -362,7 +421,6 @@ main { padding: 4px 16px 16px; }
   place-items: center;
   overflow: hidden;
 }
-.line-thumb img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .line-info { min-width: 0; }
 .line-name { font-weight: 600; line-height: 1.3; }
 .line-meta { font-size: 13px; color: var(--hint); margin-top: 2px; }
@@ -378,7 +436,6 @@ main { padding: 4px 16px 16px; }
 .row.save { color: var(--save); font-weight: 500; }
 .row.total { font-size: 19px; font-weight: 700; padding-top: 10px; margin-top: 6px; border-top: 1px solid var(--sep); }
 
-.note { margin-top: 12px; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--soft); color: var(--soft-text); font-size: 14px; }
 
 /* ── Формы ── */
 .field { display: block; margin-top: 14px; }
@@ -517,15 +574,6 @@ a { color: var(--link); }
 
 /* ── Заказ принят / заявка отправлена ── */
 .success { text-align: center; padding-top: 28px; }
-.success-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 76px;
-  height: 76px;
-  border-radius: 50%;
-  background: var(--lime);
-  color: var(--on-lime);
-}
 .success h2 { margin: 16px 0 6px; font-size: 26px; }
 .success > p { color: var(--hint); }
 .success .panel { text-align: left; margin: 20px 0 16px; }
