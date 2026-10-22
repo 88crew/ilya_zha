@@ -196,7 +196,7 @@ function render() {
   document.querySelector('.top').hidden = !home; // приветствие — только на главной
   document.getElementById('demo-banner').hidden = !DEMO || !home;
 
-  if (state.loading) $view.innerHTML = '<div class="spinner" aria-label="Загрузка"></div>';
+  if (state.loading) $view.innerHTML = '<div class="loading"><div class="spinner"></div><p>Загружаем магазин…</p></div>';
   else if (state.loadError) $view.innerHTML = viewError();
   else if (state.screen === 'register') $view.innerHTML = viewRegister();
   else if (state.screen === 'restore') $view.innerHTML = viewRestore();

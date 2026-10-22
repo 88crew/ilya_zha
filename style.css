@@ -169,6 +169,8 @@ main { padding: 4px 16px 16px; }
 }
 .tip span { flex: 1; }
 
+.loading { padding-top: 64px; text-align: center; color: var(--hint); font-size: 14px; }
+.loading .spinner { margin: 0 auto 12px; }
 .spinner-sm { width: 22px; height: 22px; margin: 0 auto; border-width: 2.5px; }
 .more { padding: 20px 0 8px; }
 .spinner {
