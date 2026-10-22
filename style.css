@@ -544,16 +544,18 @@ a { color: var(--link); }
 .tile-icon.tone-forest { color: var(--lime); }
 .tile-icon.tone-forest::after { display: none; }
 .tile-pct { display: flex; flex-direction: column; }
+.tile-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tile-top .tile-value { margin-top: 0; }
 .tile-art {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 72px;
-  height: 72px;
+  flex: none;
+  width: 64px;
+  height: 64px;
+  margin: -6px -6px -6px 0;
   -webkit-mask-image: radial-gradient(closest-side, #000 78%, transparent 100%);
   mask-image: radial-gradient(closest-side, #000 78%, transparent 100%);
 }
-.tile-pct .tile-label { padding-right: 64px; }
+.tile-pct { justify-content: center; }
+.tile-pct .tile-label { margin-top: 8px; font-size: 14px; }
 .tile-value {
   margin-top: auto;
   font-size: 48px;

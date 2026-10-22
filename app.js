@@ -446,9 +446,11 @@ function percentTile(d, i, wide) {
   }
   const art = programArt(d.name);
   return `<article class="tile tile-pct ${i % 2 ? 'tone-lime' : 'tone-forest'} ${wide ? 'tile-wide' : ''}">
-    ${art ? `<img class="tile-art" src="img/${art}.jpg" alt="" width="72" height="72">` : ''}
-    <p class="tile-label">Скидка на ${esc(lower(d.name))}</p>
-    <p class="tile-value">${value}<span>%</span></p>
+    <div class="tile-top">
+      <p class="tile-value">${value}<span>%</span></p>
+      ${art ? `<img class="tile-art" src="img/${art}.jpg" alt="" width="64" height="64">` : ''}
+    </div>
+    <p class="tile-label">на ${esc(lower(d.name))}</p>
     ${note ? `<p class="tile-note">${note}</p>` : ''}
   </article>`;
 }
@@ -523,7 +525,7 @@ function viewRegister() {
     ${err('consent')}
 
     <div class="form-actions">
-      <button class="btn btn-primary" data-action="submit-register" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Регистрируем…' : 'Зарегистрироваться'}</button>
+      <button class="btn btn-primary" data-action="submit-register" ${state.busy || !registerReady() ? 'disabled' : ''}>${state.busy ? 'Регистрируем…' : 'Зарегистрироваться'}</button>
       <button class="linkbtn" data-action="restore">${icon('restore', 'm', 18)}Уже покупали у нас?</button>
     </div>
   </section>`;
@@ -543,9 +545,10 @@ function viewRestore() {
     <label class="field"><span>Предыдущие покупки</span>
       <textarea id="r-comment" rows="4" maxlength="500" placeholder="Например: iPhone 15 в марте, ещё чехол и стекло">${esc(r.comment)}</textarea>
       <small class="field-hint">Напиши, что и когда покупал. Мы найдём историю, и скидка появится, когда ты снова откроешь магазин.</small></label>
+    ${err('comment')}
 
     <div class="form-actions">
-      <button class="btn btn-primary" data-action="submit-restore" ${state.busy ? 'disabled' : ''}>${state.busy ? 'Отправляем…' : 'Отправить'}</button>
+      <button class="btn btn-primary" data-action="submit-restore" ${state.busy || !restoreReady() ? 'disabled' : ''}>${state.busy ? 'Отправляем…' : 'Отправить'}</button>
     </div>
   </section>`;
 }
@@ -659,6 +662,7 @@ function sharePhone() {
       state.form.contact = res.response;
       state.form.errors.phone = null;
       render();
+      updateFormButtons();
     } else {
       toast('Номер отправлен боту. Введи его в поле вручную.');
     }
@@ -674,6 +678,29 @@ function requestWriteAccess() {
 
 function phoneError(phone) {
   return phone.replace(/\D/g, '').length < 10 ? 'Укажи телефон полностью, например +7 900 123-45-67' : null;
+}
+
+// Кнопки отправки неактивны, пока не заполнено обязательное.
+function contactValid(v) {
+  const c = v.trim();
+  return c.replace(/\D/g, '').length >= 10 || /^@?[A-Za-z][A-Za-z0-9_]{3,31}$/.test(c);
+}
+
+function registerReady() {
+  const f = state.form;
+  return !!f.name.trim() && !phoneError(f.phone) && f.consent;
+}
+
+function restoreReady() {
+  const r = state.restore;
+  return contactValid(r.contact) && r.comment.trim().length >= 3;
+}
+
+function updateFormButtons() {
+  const reg = $view.querySelector('[data-action="submit-register"]');
+  if (reg) reg.disabled = state.busy || !registerReady();
+  const res = $view.querySelector('[data-action="submit-restore"]');
+  if (res) res.disabled = state.busy || !restoreReady();
 }
 
 async function submitRegister() {
@@ -710,10 +737,9 @@ async function submitRestore() {
   const r = state.restore;
   r.errors = {};
   const contact = r.contact.trim();
-  const isPhone = contact.replace(/\D/g, '').length >= 10;
-  const isNick = /^@?[A-Za-z][A-Za-z0-9_]{3,31}$/.test(contact);
-  if (!isPhone && !isNick) r.errors.contact = 'Укажи телефон (например, +7 900 123-45-67) или ник в Telegram';
-  if (r.errors.contact) return render();
+  if (!contactValid(contact)) r.errors.contact = 'Укажи телефон (например, +7 900 123-45-67) или ник в Telegram';
+  if (r.comment.trim().length < 3) r.errors.comment = 'Напиши, что ты покупал раньше';
+  if (r.errors.contact || r.errors.comment) return render();
 
   await requestWriteAccess();
 
@@ -809,9 +835,11 @@ $view.addEventListener('input', e => {
   else if (t.id === 'f-consent') state.form.consent = t.checked;
   else if (t.id === 'r-comment') state.restore.comment = t.value;
   else if (t.id === 'r-contact') state.restore.contact = t.value;
+  updateFormButtons();
 });
 $view.addEventListener('change', e => {
   if (e.target.id === 'f-consent') state.form.consent = e.target.checked;
+  updateFormButtons();
 });
 
 // Сломанная картинка товара → остаётся иконка-заглушка под ней.
