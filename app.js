@@ -5,7 +5,11 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbyBQ8r6YgfJx961dyweGuk8
 
 const tg = window.Telegram && window.Telegram.WebApp;
 const IN_TG = !!(tg && tg.initData);
-const DEMO = !IN_TG; // вне Telegram показываем демо-данные, чтобы можно было посмотреть интерфейс
+// Telegram передаёт данные пользователя в адресе страницы. Если они есть, а скрипт Telegram не загрузился,
+// это сбой загрузки, а не обычный браузер, — демо-данные в этом случае не показываем.
+const OPENED_IN_TG = IN_TG || /tgWebAppData=/.test(location.hash);
+const DEMO = !OPENED_IN_TG; // вне Telegram показываем демо-данные, чтобы можно было посмотреть интерфейс
+const REQUEST_TIMEOUT_MS = 20000;
 const CART_KEY = 'cart_v1';
 const PAGE_SIZE = 25; // столько товаров рисуем сразу, остальные — по мере прокрутки
 
@@ -39,12 +43,18 @@ const cardCache = new Map();
 
 async function api(action, payload) {
   if (DEMO) return demoApi(action, payload || {});
-  const res = await fetch(API_URL, {
-    method: 'POST',
-    // text/plain — «простой» запрос без CORS-preflight, который Apps Script не поддерживает
-    body: JSON.stringify(Object.assign({ action, initData: tg.initData }, payload)),
-  });
-  const data = await res.json();
+  if (!IN_TG) throw new Error('Не удалось связаться с Telegram. Закрой приложение и открой снова.');
+  // Запуск можно безопасно повторить: если сервер не ответил или ответил ошибкой сети, пробуем ещё раз.
+  const attempts = action === 'init' ? 2 : 1;
+  let data;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      data = await fetchJson(Object.assign({ action, initData: tg.initData }, payload));
+      break;
+    } catch (err) {
+      if (i === attempts) throw new Error('Не получилось загрузить данные. Проверь интернет и попробуй ещё раз.');
+    }
+  }
   if (!data.ok) {
     const err = new Error(data.error || 'Что-то пошло не так');
     err.code = data.code;
@@ -53,18 +63,36 @@ async function api(action, payload) {
   return data;
 }
 
+/** POST с ограничением по времени: зависший запрос не держит приложение бесконечно. */
+async function fetchJson(body) {
+  const ctrl = window.AbortController ? new AbortController() : null;
+  const timer = ctrl && setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      // text/plain — «простой» запрос без CORS-preflight, который Apps Script не поддерживает
+      body: JSON.stringify(body),
+      signal: ctrl ? ctrl.signal : undefined,
+    });
+    return await res.json();
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 /**
  * Сначала показываем сохранённую с прошлого раза копию магазина — мгновенно,
  * а свежие данные с сервера подменяют её, как только придут.
  */
 async function load() {
-  const cached = readInitCache();
-  if (cached) {
-    applyInit(cached);
-    state.loading = false;
-  } else {
-    state.loading = true;
+  let cached = null;
+  try {
+    cached = readInitCache();
+    if (cached) applyInit(cached);
+  } catch (err) {
+    cached = null; // сохранённая копия оказалась битой — просто ждём сервер
   }
+  state.loading = !cached;
   state.loadError = null;
   render();
   try {
@@ -1057,6 +1085,20 @@ async function demoApi(action) {
 
 // ───────────── Запуск ─────────────
 
+// Любая неожиданная ошибка — экран «Попробовать снова» вместо пустой страницы.
+function showFatal(message) {
+  state.loading = false;
+  state.loadError = message || 'Что-то пошло не так. Попробуй ещё раз.';
+  state.screen = null;
+  try {
+    render();
+  } catch (err) {
+    $view.innerHTML = `<div class="empty"><p>${esc(state.loadError)}</p><button class="btn btn-primary" data-action="reload">Попробовать снова</button></div>`;
+  }
+}
+window.addEventListener('error', () => { if (!state.products.length) showFatal(); });
+window.addEventListener('unhandledrejection', () => { if (!state.products.length) showFatal(); });
+
 const TAB_ICONS = { catalog: 'home', discounts: 'percent' };
 document.querySelectorAll('.dock-tab').forEach(t => { t.innerHTML = icon(TAB_ICONS[t.dataset.tab], 'm', 26); });
 document.getElementById('dock-cart-icon').innerHTML = icon('cart', 'm', 26);
@@ -1068,4 +1110,4 @@ if (IN_TG) {
   tg.MainButton.hide(); // свою нижнюю панель рисуем сами
   if (tg.BackButton) tg.BackButton.onClick(goBack);
 }
-load();
+load().catch(err => showFatal(err && err.message));
