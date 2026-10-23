@@ -398,11 +398,11 @@ function viewCart() {
   }
   const t = cartTotals(lines);
   return `
+    <h2 class="page-title">Корзина</h2>
     ${state.profile ? '' : `<button class="tip" data-action="register">
       <img src="img/tip-bulb.jpg" alt="" width="48" height="48">
       <span>Чтобы оформить заказ со скидкой, зарегистрируйся.</span>${icon('chevron', 's', 18)}
     </button>`}
-    <h2 class="page-title">Корзина</h2>
     <ul class="lines">${lines.map(lineHtml).join('')}</ul>
     <section class="panel summary">
       <div class="row"><span>Товары, ${t.count} шт.</span><span>${money(t.subtotal)}</span></div>
