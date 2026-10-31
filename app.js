@@ -115,10 +115,20 @@ function initCacheKey() {
 function readInitCache() {
   if (DEMO) return null;
   try {
-    return JSON.parse(localStorage.getItem(initCacheKey()));
+    const data = JSON.parse(localStorage.getItem(initCacheKey()));
+    if (isInitData(data)) return data;
+    // Неполная копия ломала бы каждый запуск ещё до запроса к серверу — стираем её.
+    localStorage.removeItem(initCacheKey());
   } catch (err) {
-    return null;
+    // Хранилище недоступно или копия битая — просто ждём сервер.
   }
+  return null;
+}
+
+/** Ответ на «init»: магазин, категории, товары и скидки. Без них отрисовать магазин нельзя. */
+function isInitData(data) {
+  return !!(data && typeof data === 'object' && data.shop && typeof data.shop === 'object' &&
+    Array.isArray(data.categories) && Array.isArray(data.products) && Array.isArray(data.discounts));
 }
 
 function writeInitCache(data) {
@@ -131,6 +141,8 @@ function writeInitCache(data) {
 }
 
 function applyInit(data) {
+  // Неполный ответ не трогает состояние и не попадает в сохранённую копию.
+  if (!isInitData(data)) throw new Error('Магазин прислал неполные данные. Попробуй ещё раз через минуту.');
   state.shop = data.shop;
   state.categories = data.categories;
   state.products = data.products;
